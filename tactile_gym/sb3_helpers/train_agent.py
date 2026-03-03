@@ -1,4 +1,4 @@
-import gym
+import gymnasium as gym
 import os
 import sys
 import time

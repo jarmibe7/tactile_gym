@@ -1,5 +1,5 @@
 import sys
-import gym
+import gymnasium as gym
 import numpy as np
 import pybullet as pb
 import pybullet_utils.bullet_client as bc

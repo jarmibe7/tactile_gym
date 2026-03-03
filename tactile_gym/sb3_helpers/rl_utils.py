@@ -1,5 +1,5 @@
 import os
-import gym
+import gymnasium as gym
 import stable_baselines3 as sb3
 from stable_baselines3.common.vec_env import (
     DummyVecEnv,
