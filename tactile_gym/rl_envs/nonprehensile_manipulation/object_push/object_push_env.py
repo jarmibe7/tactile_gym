@@ -54,7 +54,7 @@ class ObjectPushEnv(BaseObjectEnv):
         self.obj_width = 0.08
         self.obj_height = 0.08
 
-        # which t_s to use
+        # which t_s to use (tactile sensor)
         self.t_s_name = env_modes["tactile_sensor_name"]
         self.t_s_type = "right_angle"
         self.t_s_core = "fixed"
@@ -286,7 +286,7 @@ class ObjectPushEnv(BaseObjectEnv):
         Generates smooth trajectory of goals
         """
         # initialise noise
-        simplex_noise = OpenSimplex(seed=self.np_random.randint(1e8))
+        simplex_noise = OpenSimplex(seed=int(self.np_random.integers(1e8)))
         init_offset = self.obj_width / 2 + self.traj_spacing
 
         # generate smooth 1d traj using opensimplex
