@@ -178,11 +178,11 @@ class BaseTactileEnv(gym.Env):
             max_steps=self._max_blocking_pos_move_steps,
         )
 
-        reward, done = self.get_step_data()
+        reward, terminated, truncated = self.get_step_data()
 
         self._observation = self.get_observation()
 
-        return self._observation, reward, done, {}
+        return self._observation, reward, terminated, truncated, {}
 
     def get_extended_feature_array(self):
         """

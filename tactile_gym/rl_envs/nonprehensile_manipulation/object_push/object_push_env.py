@@ -475,9 +475,10 @@ class ObjectPushEnv(BaseObjectEnv):
             reward = self.dense_reward()
 
         # get rl info
-        done = self.termination()
+        terminated = self.check_terminated()
+        truncated = self.check_truncated()
 
-        return reward, done
+        return reward, terminated, truncated
 
     def cos_tcp_dist_to_obj(self):
         """
@@ -512,6 +513,20 @@ class ObjectPushEnv(BaseObjectEnv):
         # self._pb.addUserDebugLine(start_point, start_point + normal, [1, 0, 0], parentObjectUniqueId=-1, parentLinkIndex=-1, lifeTime=0.1)
 
         return cos_dist
+    
+    def check_terminated(self):
+        obj_goal_pos_dist = self.xyz_obj_dist_to_goal()
+
+        if obj_goal_pos_dist < self.termination_pos_dist:
+            goal_updated = self.update_goal()
+            if not goal_updated:
+                return True  # task termination
+
+        return False
+
+
+    def check_truncated(self):
+        return self._env_step_counter >= self._max_steps
 
     def termination(self):
         """

@@ -188,7 +188,7 @@ class BaseObjectEnv(BaseTactileEnv):
         # get the starting observation
         self._observation = self.get_observation()
 
-        return self._observation
+        return self._observation, {}
 
     def full_reset(self):
         """
