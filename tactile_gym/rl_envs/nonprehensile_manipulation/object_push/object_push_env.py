@@ -14,11 +14,13 @@ from tactile_gym.rl_envs.nonprehensile_manipulation.base_object_env import BaseO
 env_modes_default = {
     "movement_mode": "yRz",
     "control_mode": "TCP_velocity_control",
+    "rand_init_pos": False,
     "rand_init_orn": False,
     "rand_obj_mass": False,
     "traj_type": "simplex",
     "observation_mode": "oracle",
     "reward_mode": "dense",
+    "use_goal": True,
 }
 
 
@@ -39,9 +41,17 @@ class ObjectPushEnv(BaseObjectEnv):
         self._max_blocking_pos_move_steps = 10
 
         # pull params from env_modes specific to push env
+        self.rand_init_pos = env_modes.get("rand_init_pos", False)
         self.rand_init_orn = env_modes["rand_init_orn"]
         self.rand_obj_mass = env_modes["rand_obj_mass"]
         self.traj_type = env_modes["traj_type"]
+        self.use_goal = env_modes["use_goal"]
+
+        # Don't display goal if specified not to use it
+        if self.use_goal:
+            self.goal_alpha = 0.5
+        else:
+            self.goal_alpha = 0.0
 
         # set which robot arm to use
         self.arm_type = env_modes["arm_type"]
@@ -97,10 +107,10 @@ class ObjectPushEnv(BaseObjectEnv):
             TCP_lims[5, 0], TCP_lims[5, 1] = -45 * np.pi / 180, 45 * np.pi / 180  # yaw lims
 
             # this well_designed_pos is used for the object and the workframe.
-            self.well_designed_pos = np.array([0.55, -0.20, self.obj_height/2])
+            self.well_designed_pos = np.array([0.55, -0.15, self.obj_height/2])
         # work frame origin
-        # self.workframe_pos = np.array([0.55, -0.15, 0.04])
-        self.workframe_pos = self.well_designed_pos
+        self.workframe_pos = np.array([0.55, -0.2, self.obj_height/2])
+        # self.workframe_pos = self.well_designed_pos
         self.workframe_rpy = np.array([-np.pi, 0.0, np.pi / 2])
 
         # initial joint positions used when reset
@@ -177,6 +187,8 @@ class ObjectPushEnv(BaseObjectEnv):
         self.rgb_fov = 75
         self.rgb_near_val = 0.1
         self.rgb_far_val = 100
+        # self._view_matrix = self._pb.computeViewMatrixFromYawPitchRoll(...)
+        # self._proj_matrix = self._pb.computeProjectionMatrixFOV(...)
 
     def setup_object(self):
         """
@@ -209,8 +221,19 @@ class ObjectPushEnv(BaseObjectEnv):
         else:
             self.init_obj_ang = 0.0
 
+        init_pos = self.init_obj_pos
+        if self.rand_init_pos:
+            randomized_range = 2*self.obj_width     # 2 block widths
+            pos_noise_x = self.np_random.uniform(-randomized_range, randomized_range)
+            pos_noise_y = self.np_random.uniform(-randomized_range, randomized_range)
+            init_pos = [
+                self.init_obj_pos[0] + pos_noise_x,
+                self.init_obj_pos[1] + pos_noise_y,
+                self.init_obj_pos[2],
+            ]
+
         self.init_obj_orn = self._pb.getQuaternionFromEuler([-np.pi, 0.0, np.pi / 2 + self.init_obj_ang])
-        self._pb.resetBasePositionAndOrientation(self.obj_id, self.init_obj_pos, self.init_obj_orn)
+        self._pb.resetBasePositionAndOrientation(self.obj_id, init_pos, self.init_obj_orn)
 
         # perform object dynamics randomisations
         self._pb.changeDynamics(
@@ -245,7 +268,7 @@ class ObjectPushEnv(BaseObjectEnv):
                 [0, 0, 0, 1],
                 useFixedBase=True,
             )
-            self._pb.changeVisualShape(traj_point_id, -1, rgbaColor=[0, 1, 0, 0.5])
+            self._pb.changeVisualShape(traj_point_id, -1, rgbaColor=[0, 1, 0, self.goal_alpha])
             self._pb.setCollisionFilterGroupMask(traj_point_id, -1, 0, 0)
             self.traj_ids.append(traj_point_id)
 
@@ -279,7 +302,7 @@ class ObjectPushEnv(BaseObjectEnv):
 
             # place goal
             self._pb.resetBasePositionAndOrientation(self.traj_ids[i], pos_worldframe, orn_worldframe)
-            self._pb.changeVisualShape(self.traj_ids[i], -1, rgbaColor=[0, 1, 0, 0.5])
+            self._pb.changeVisualShape(self.traj_ids[i], -1, rgbaColor=[0, 1, 0, self.goal_alpha])
 
     def update_trajectory_simplex(self):
         """
@@ -357,12 +380,12 @@ class ObjectPushEnv(BaseObjectEnv):
             self.goal_rpy_workframe = self.traj_rpy_workframe[self.targ_traj_list_id]
 
             # change colour of new target goal
-            self._pb.changeVisualShape(self.goal_id, -1, rgbaColor=[0, 0, 1, 0.5])
+            self._pb.changeVisualShape(self.goal_id, -1, rgbaColor=[0, 0, 1, self.goal_alpha])
 
             # change colour of goal just reached
             prev_goal_traj_list_id = self.targ_traj_list_id - 1 if self.targ_traj_list_id > 0 else None
             if prev_goal_traj_list_id is not None:
-                self._pb.changeVisualShape(self.traj_ids[prev_goal_traj_list_id], -1, rgbaColor=[1, 0, 0, 0.5])
+                self._pb.changeVisualShape(self.traj_ids[prev_goal_traj_list_id], -1, rgbaColor=[1, 0, 0, self.goal_alpha])
 
             return True
 
