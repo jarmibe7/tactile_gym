@@ -25,6 +25,10 @@ class BaseTactileEnv(gym.Env):
         self._first_render = True
         self._render_closed = False
         self.arm_type = arm_type
+        self.camera_mode = "exocentric"
+        self.egocentric_cam_pos_offset = np.array([0.0, 0.0, 0.0], dtype=np.float32)
+        self.egocentric_cam_target_offset = np.array([0.04, 0.0, 0.0], dtype=np.float32)
+        self.egocentric_cam_up_offset = np.array([0.0, 0.0, 1.0], dtype=np.float32)
         # set up camera for rgb obs and debbugger
         self.setup_rgb_obs_camera_params()
 
@@ -95,6 +99,9 @@ class BaseTactileEnv(gym.Env):
         elif self.observation_mode == "visual":
             self.observation_space = gym.spaces.Dict({"visual": spaces["visual"]})
 
+        elif self.observation_mode == "egocentric_visual":
+            self.observation_space = gym.spaces.Dict({"visual": spaces["visual"]})
+
         elif self.observation_mode == "visuotactile":
             self.observation_space = gym.spaces.Dict({"tactile": spaces["tactile"], "visual": spaces["visual"]})
 
@@ -104,6 +111,11 @@ class BaseTactileEnv(gym.Env):
             )
 
         elif self.observation_mode == "visual_and_feature":
+            self.observation_space = gym.spaces.Dict(
+                {"visual": spaces["visual"], "extended_feature": spaces["extended_feature"]}
+            )
+
+        elif self.observation_mode == "egocentric_visual_and_feature":
             self.observation_space = gym.spaces.Dict(
                 {"visual": spaces["visual"], "extended_feature": spaces["extended_feature"]}
             )
@@ -213,21 +225,40 @@ class BaseTactileEnv(gym.Env):
         """
         Returns the rgb image from an environment camera.
         """
-        # get an rgb image that matches the debug visualiser
-        view_matrix = self._pb.computeViewMatrixFromYawPitchRoll(
-            cameraTargetPosition=self.rgb_cam_pos,
-            distance=self.rgb_cam_dist,
-            yaw=self.rgb_cam_yaw,
-            pitch=self.rgb_cam_pitch,
-            roll=0,
-            upAxisIndex=2,
-        )
+        is_egocentric = self._is_egocentric_mode() and hasattr(self, "robot")
+
+        if self._is_egocentric_mode() and hasattr(self, "robot"):
+            cam_pos, cam_target_pos, up_vector = self._get_egocentric_view_params()
+            view_matrix = self._pb.computeViewMatrix(
+                cam_pos,
+                cam_target_pos,
+                up_vector,
+            )
+        else:
+            # get an rgb image that matches the debug visualiser
+            view_matrix = self._pb.computeViewMatrixFromYawPitchRoll(
+                cameraTargetPosition=self.rgb_cam_pos,
+                distance=self.rgb_cam_dist,
+                yaw=self.rgb_cam_yaw,
+                pitch=self.rgb_cam_pitch,
+                roll=0,
+                upAxisIndex=2,
+            )
+
+        if is_egocentric:
+            fov = getattr(self, "egocentric_rgb_fov", self.rgb_fov)
+            near_val = getattr(self, "egocentric_rgb_near_val", self.rgb_near_val)
+            far_val = getattr(self, "egocentric_rgb_far_val", self.rgb_far_val)
+        else:
+            fov = self.rgb_fov
+            near_val = self.rgb_near_val
+            far_val = self.rgb_far_val
 
         proj_matrix = self._pb.computeProjectionMatrixFOV(
-            fov=self.rgb_fov,
+            fov=fov,
             aspect=float(self.rgb_image_size[0]) / self.rgb_image_size[1],
-            nearVal=self.rgb_near_val,
-            farVal=self.rgb_far_val,
+            nearVal=near_val,
+            farVal=far_val,
         )
 
         (_, _, px, _, _) = self._pb.getCameraImage(
@@ -244,6 +275,26 @@ class BaseTactileEnv(gym.Env):
         observation = rgb_array[:, :, :3]
         return observation
 
+    def _is_egocentric_mode(self):
+        obs_mode = getattr(self, "observation_mode", "")
+        return getattr(self, "camera_mode", "exocentric") == "egocentric" or obs_mode.startswith("egocentric_")
+
+    def _get_egocentric_view_params(self):
+        (
+            tcp_pos_world,
+            _,
+            tcp_orn_world,
+            _,
+            _,
+        ) = self.robot.arm.get_current_TCP_pos_vel_worldframe()
+
+        rot_matrix = np.array(self._pb.getMatrixFromQuaternion(tcp_orn_world)).reshape(3, 3)
+
+        cam_pos = np.array(tcp_pos_world) + rot_matrix.dot(self.egocentric_cam_pos_offset)
+        cam_target_pos = cam_pos + rot_matrix.dot(self.egocentric_cam_target_offset)
+        up_vector = rot_matrix.dot(self.egocentric_cam_up_offset)
+        return cam_pos, cam_target_pos, up_vector
+
     def get_observation(self):
         """
         Returns the observation dependent on which mode is set.
@@ -256,9 +307,11 @@ class BaseTactileEnv(gym.Env):
             "oracle",
             "tactile",
             "visual",
+            "egocentric_visual",
             "visuotactile",
             "tactile_and_feature",
             "visual_and_feature",
+            "egocentric_visual_and_feature",
             "visuotactile_and_feature",
         ]:
             sys.exit("Incorrect observation mode specified: {}".format(self.observation_mode))

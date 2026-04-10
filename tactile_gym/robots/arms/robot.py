@@ -31,6 +31,7 @@ class Robot:
         t_s_dynamics={},
         show_gui=True,
         show_tactile=True,
+        hide_tactile_geometry=False,
     ):
 
         self._pb = pb
@@ -38,6 +39,7 @@ class Robot:
         self.t_s_name = t_s_name
         self.t_s_type = t_s_type
         self.t_s_core = t_s_core
+        self.hide_tactile_geometry = hide_tactile_geometry
 
         # load the urdf file
         self.robot_id = self.load_robot()
@@ -91,6 +93,31 @@ class Robot:
             show_tactile=show_tactile,
             t_s_num=1
         )
+
+        if self.hide_tactile_geometry:
+            self.set_tactile_geometry_visible(visible=False)
+
+    def _set_link_visibility(self, link_id, visible):
+        """Toggle visual alpha for a robot link."""
+        rgba = [1.0, 1.0, 1.0, 1.0 if visible else 0.0]
+        try:
+            visual_shapes = self._pb.getVisualShapeData(self.robot_id)
+            for shape in visual_shapes:
+                if shape[1] == link_id:
+                    color = shape[7]
+                    rgba = [color[0], color[1], color[2], 1.0 if visible else 0.0]
+                    break
+        except Exception:
+            pass
+
+        self._pb.changeVisualShape(self.robot_id, link_id, rgbaColor=rgba)
+
+    def set_tactile_geometry_visible(self, visible):
+        """Show/hide tactile sensor geometry without removing the sensor."""
+        for key in ("body", "tip", "adapter"):
+            link_id = self.t_s.tactile_link_ids.get(key, None)
+            if link_id is not None:
+                self._set_link_visibility(link_id, visible)
 
     def load_robot(self):
         """

@@ -46,6 +46,7 @@ class EdgeFollowEnv(BaseTactileEnv):
         self.control_mode = env_modes["control_mode"]
         self.noise_mode = env_modes["noise_mode"]
         self.observation_mode = env_modes["observation_mode"]
+        self.camera_mode = env_modes.get("camera_mode", "exocentric")
         self.reward_mode = env_modes["reward_mode"]
 
         # set which robot arm to use

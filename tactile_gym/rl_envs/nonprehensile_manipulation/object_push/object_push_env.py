@@ -125,6 +125,15 @@ class ObjectPushEnv(BaseObjectEnv):
             show_gui,
             show_tactile,
         )
+
+        # Tune egocentric camera for push task so the block is in view at reset,
+        # while keeping the view near the tactile sensor and away from table clipping.
+        self.egocentric_cam_pos_offset = np.array([-0.020, 0.020, -0.008], dtype=np.float32)
+        self.egocentric_cam_target_offset = np.array([0.185, -0.015, -0.008], dtype=np.float32)
+        self.egocentric_cam_up_offset = np.array([0.0, 0.0, -1.0], dtype=np.float32)
+        self.egocentric_rgb_fov = 108
+        self.egocentric_rgb_near_val = 0.008
+
         # lod all the objects for trajectory
         self.load_trajectory()
 

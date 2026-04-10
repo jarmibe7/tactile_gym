@@ -21,7 +21,12 @@ class BaseObjectEnv(BaseTactileEnv):
         self.movement_mode = env_modes["movement_mode"]
         self.control_mode = env_modes["control_mode"]
         self.observation_mode = env_modes["observation_mode"]
+        self.camera_mode = env_modes.get("camera_mode", "exocentric")
         self.reward_mode = env_modes["reward_mode"]
+        self.hide_tactile_geometry = env_modes.get(
+            "hide_tactile_geometry",
+            self.camera_mode == "egocentric",
+        )
 
         # setup variables
         self.setup_object()
@@ -47,6 +52,7 @@ class BaseObjectEnv(BaseTactileEnv):
             t_s_dynamics=self.t_s_dynamics,
             show_gui=self._show_gui,
             show_tactile=self._show_tactile,
+            hide_tactile_geometry=self.hide_tactile_geometry,
         )
 
     def setup_action_space(self):
